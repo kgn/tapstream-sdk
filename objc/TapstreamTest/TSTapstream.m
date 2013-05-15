@@ -3,7 +3,11 @@
 #import "TSPlatformImpl.h"
 #import "TSCoreListenerImpl.h"
 
-@interface TSDelegateImpl : NSObject<TSDelegate> {}
+@interface TSDelegateImpl : NSObject<TSDelegate>
+{
+@private
+	int delay;
+}
 - (int)getDelay;
 - (bool)isRetryAllowed;
 @end
@@ -11,7 +15,12 @@
 @implementation TSDelegateImpl
 - (int)getDelay
 {
-	return 0;
+	return delay;
+}
+
+- (void)setDelay:(int)delayVal
+{
+	delay = delayVal;
 }
 
 - (bool)isRetryAllowed
@@ -37,7 +46,7 @@
 
 @synthesize del, platform, listener, core;
 
-- (id)initWithOperationQueue:(TSOperationQueue *)q accountName:(NSString *)accountName developerSecret:(NSString *)developerSecret hardware:(NSString *)hardware
+- (id)initWithOperationQueue:(TSOperationQueue *)q accountName:(NSString *)accountName developerSecret:(NSString *)developerSecret config:(TSConfig *)config
 {
 	if((self = [super init]) != nil)
 	{
@@ -49,7 +58,8 @@
 			listener:listener
 			accountName:accountName
 			developerSecret:developerSecret
-			hardware:hardware];
+			config:config];
+		[core start];
 	}
 	return self;
 }
@@ -87,6 +97,11 @@
 - (int)getDelay
 {
 	return [core getDelay];
+}
+
+- (void)setDelay:(int)delay
+{
+	[del setDelay:delay];
 }
 
 - (NSString *)getPostData

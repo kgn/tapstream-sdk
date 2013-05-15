@@ -22,5 +22,15 @@ interface Platform {
 
 	public String getLocale();
 
+	public String getWifiMac();
+
+	public String getDeviceId();
+
+	public String getAndroidId();
+
+	public String getAppName();
+
+	public String getPackageName();
+
 	public Response request(String url, String data);
 }

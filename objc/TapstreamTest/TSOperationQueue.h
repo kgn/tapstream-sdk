@@ -24,6 +24,7 @@
 
 - (void)put:(TSOperation *)op;
 - (TSOperation *)take;
-- (void)expect:(NSString *)opName;
+- (NSString *)expect:(NSString *)opName;
+- (NSString *)expectEventually:(NSString *)opName;
 
 @end

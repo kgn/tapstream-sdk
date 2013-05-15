@@ -1,6 +1,7 @@
 from paver.easy import *
 from paver.easy import path
 import re
+import json
 import itertools
 
 """
@@ -35,12 +36,13 @@ PRETTY_PLATFORMS = {
 DEBUG = False
 CONFIGURATION = 'Release'
 
+VERSION = json.load(open('current_version.json'))['version']
+
 @task
 def debug():
 	global DEBUG, CONFIGURATION
 	DEBUG = True
 	CONFIGURATION = 'Debug'
-
 
 # Java sdk for Android
 def _make_java(path):
@@ -76,17 +78,17 @@ def _package_java():
 	path('builds/android').makedirs()
 	path.copy(path('./java/Tapstream/build/jar/Tapstream.jar'), path('./builds/android/'))
 	path.copy(path('./java/Tapstream/build/jar/Tapstream.jar'), path('./examples/Android/Example/libs/'))
-	path('builds/TapstreamSDK-android.zip').remove()
+	path('builds/TapstreamSDK-%s-android.zip' % VERSION).remove()
 	with pushd('builds/android'):
-		sh('7z a -tzip ../TapstreamSDK-android.zip Tapstream.jar')
+		sh('7z a -tzip ../TapstreamSDK-%s-android.zip Tapstream.jar' % VERSION)
 
 def _package_java_whitelabel():
 	path('builds/android-whitelabel').rmtree()
 	path('builds/android-whitelabel').makedirs()
 	path.copy(path('./java-whitelabel/Tapstream/build/jar/Tapstream.jar'), path('./builds/android-whitelabel/ConversionTracker.jar'))
-	path('builds/TapstreamSDK-android-whitelabel.zip').remove()
+	path('builds/TapstreamSDK-%s-android-whitelabel.zip' % VERSION).remove()
 	with pushd('builds/android-whitelabel'):
-		sh('7z a -tzip ../TapstreamSDK-android-whitelabel.zip ConversionTracker.jar')
+		sh('7z a -tzip ../TapstreamSDK-%s-android-whitelabel.zip ConversionTracker.jar' % VERSION)
 	path('java-whitelabel').rmtree()
 
 @task
@@ -113,11 +115,23 @@ def make_cs():
 	with pushd('cs'):
 		sh('msbuild /m Tapstream.sln /t:Build /p:Configuration=%s' % CONFIGURATION)
 		sh('msbuild /m TapstreamWinPhone.sln /t:Build /p:Configuration=%s' % CONFIGURATION)
-		sh('msbuild /m TapstreamTest.sln /t:Build /p:Configuration=Debug')
+		# Build win8 test code
+		sh('msbuild /m TapstreamTest.sln /t:Build /p:Configuration=Debug;OutDir=bin/Debug/win8')
+		# Build winphone test code
+		sh('msbuild /m TapstreamTest.sln /t:Build /p:Configuration=Debug;OutDir=bin/Debug/winphone;DefineConstants="DEBUG;TRACE;TEST_WINPHONE"')
+
+@task
+def test_cs_win8():
+	sh('"cs/TapstreamTest/bin/Debug/win8/TapstreamTest.exe" tests.js')
+
+@task
+def test_cs_winphone():
+	sh('"cs/TapstreamTest/bin/Debug/winphone/TapstreamTest.exe" tests.js')
 
 @task
 def test_cs():
-	sh('"cs/TapstreamTest/bin/Debug/TapstreamTest.exe" tests.js')
+	test_cs_win8()
+	test_cs_winphone()
 
 @task
 def package_cs():
@@ -130,13 +144,13 @@ def package_cs():
 	path('builds/winphone').makedirs()
 	path.copy(path('./cs/TapstreamWinPhone/Bin/%s/TapstreamMetrics.dll' % CONFIGURATION), path('./builds/winphone/'))
 
-	path('builds/TapstreamSDK-win8.zip').remove()
+	path('builds/TapstreamSDK-%s-win8.zip' % VERSION).remove()
 	with pushd('builds/win8'):
-		sh('7z a -tzip ../TapstreamSDK-win8.zip TapstreamMetrics.winmd')
+		sh('7z a -tzip ../TapstreamSDK-%s-win8.zip TapstreamMetrics.winmd' % VERSION)
 
 	path('builds/TapstreamSDK-winphone.zip').remove()
 	with pushd('builds/winphone'):
-		sh('7z a -tzip ../TapstreamSDK-winphone.zip TapstreamMetrics.dll')
+		sh('7z a -tzip ../TapstreamSDK-%s-winphone.zip TapstreamMetrics.dll' % VERSION)
 
 
 
@@ -176,7 +190,7 @@ def make_objc():
 		sh('%s -isysroot %s -miphoneos-version-min=4.3 -arch armv7 -fobjc-arc -shared %s %s -o ./TapstreamTest/bin/Tapstream.so -framework Foundation -framework UIKit' % (
 			clang, sdk_root, include_dirs, tapstream_sources
 		))
-
+		
 		# Mac With and without ARC
 		sh('clang -fno-objc-arc -shared %s %s -o ./TapstreamTest/bin/Tapstream.so -framework Foundation -framework AppKit' % (
 			include_dirs, tapstream_sources
@@ -185,14 +199,28 @@ def make_objc():
 			include_dirs, tapstream_sources
 		))
 
-		# Compile test application
-		sh('clang++ -fobjc-arc %s %s -o ./TapstreamTest/bin/TapstreamTest -lv8 -framework Foundation' % (
+		# Compile test application for ios
+		sh('clang++ -fobjc-arc %s %s -o ./TapstreamTest/bin/TapstreamTestIos -DTEST_IOS=1 -DTEST_PLATFORM=ios -lv8 -framework Foundation' % (
 			include_dirs, tapstream_test_sources
 		))
+		# Compile test application for mac
+		sh('clang++ -fobjc-arc %s %s -o ./TapstreamTest/bin/TapstreamTestMac -DTEST_PLATFORM=mac -lv8 -framework Foundation' % (
+			include_dirs, tapstream_test_sources
+		))
+		
+
+@task
+def test_objc_mac():
+	sh('./objc/TapstreamTest/bin/TapstreamTestMac tests.js')
+
+@task
+def test_objc_ios():
+	sh('./objc/TapstreamTest/bin/TapstreamTestIos tests.js')
 
 @task
 def test_objc():
-	sh('./objc/TapstreamTest/bin/TapstreamTest tests.js')
+	test_objc_mac()
+	test_objc_ios()
 
 @task
 def package_objc():
@@ -204,9 +232,9 @@ def package_objc():
 		for file_type in ('.h', '.m'):
 			sh('cp ./objc/Tapstream/*%s ./builds/%s/Tapstream/' % (file_type, sdk))
 			sh('cp ./objc/Core/*%s ./builds/%s/Tapstream/' % (file_type, sdk))
-		path('builds/TapstreamSDK-%s.zip' % sdk).remove()
+		path('builds/TapstreamSDK-%s-%s.zip' % (VERSION, sdk)).remove()
 		with pushd('builds/%s' % sdk):
-			sh('zip -r ../TapstreamSDK-%s.zip Tapstream' % sdk)
+			sh('zip -r ../TapstreamSDK-%s-%s.zip Tapstream' % (VERSION, sdk))
 
 		# Generate whitelabel
 		path('builds/%s-whitelabel' % sdk).rmtree()
@@ -226,9 +254,34 @@ def package_objc():
 					f.write(data)
 					f.truncate()
 
-		path('builds/TapstreamSDK-%s-whitelabel.zip' % sdk).remove()
+		path('builds/TapstreamSDK-%s-%s-whitelabel.zip' % (VERSION, sdk)).remove()
 		with pushd('builds/%s-whitelabel' % sdk):
-			sh('zip -r ../TapstreamSDK-%s-whitelabel.zip ConversionTracker' % sdk)
+			sh('zip -r ../TapstreamSDK-%s-%s-whitelabel.zip ConversionTracker' % (VERSION, sdk))
+
+
+
+@task
+def make_phonegap():
+	path('builds/phonegap').rmtree()
+	path('builds/phonegap').makedirs()
+	sh('cp ./phonegap/tapstream.js ./builds/phonegap/')
+	sh('cp -r ./phonegap/objc_plugin ./builds/phonegap/')
+	sh('cp -r ./phonegap/java_plugin ./builds/phonegap/')
+	sh('cp builds/android/Tapstream.jar ./builds/phonegap')
+	sh('cp -r builds/ios/Tapstream ./builds/phonegap')
+
+
+@task
+def package_phonegap():
+	assert(path('builds/phonegap/Tapstream.jar').exists())
+	assert(path('builds/phonegap/Tapstream').exists())
+
+	path('builds/TapstreamSDK-%s-phonegap.zip' % VERSION).remove()
+	with pushd('builds'):
+		sh('cp -r phonegap TapstreamSDK-%s-phonegap' % VERSION)
+		sh('7z a -tzip TapstreamSDK-%s-phonegap.zip TapstreamSDK-%s-phonegap' % (VERSION, VERSION))
+		sh('rm -rf TapstreamSDK-%s-phonegap' % VERSION)
+
 
 
 @task
@@ -255,4 +308,12 @@ def docs():
 			md = markdown.markdown(md, ['fenced_code', 'codehilite'])
 			page = base_template.render(Context({'md': md}))
 			with open('docs_%s.html' % platform, 'w') as f:
+				f.write(page)
+
+	path.copy(path('phonegap/PhoneGap.md'), path('./builds/docs/docs_phonegap.md'))
+	with open('phonegap/PhoneGap.md') as f:
+		md = markdown.markdown(f.read(), ['fenced_code', 'codehilite'])
+		page = base_template.render(Context({'md': md}))
+		with pushd('builds/docs'):
+			with open('docs_phonegap.html', 'w') as f:
 				f.write(page)

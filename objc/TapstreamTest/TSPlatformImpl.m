@@ -62,6 +62,21 @@
 	return @"en_US";
 }
 
+- (NSString *)getWifiMac
+{
+	return @"00:00:00:00:00:00";
+}
+
+- (NSString *)getAppName
+{
+	return @"TestApp";
+}
+
+- (NSString *)getPackageName
+{
+	return @"com.test.TestApp";
+}
+
 - (TSResponse *)request:(NSString *)url data:(NSString *)data
 {
 	return response;

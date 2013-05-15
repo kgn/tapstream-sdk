@@ -9,6 +9,7 @@
 @property(nonatomic, STRONG_OR_RETAIN) TSTapstream *ts;
 - (id)initWithTapstream:(TSTapstream *)ts;
 - (int)getDelay;
+- (void)setDelay:(int)delay;
 - (bool)isRetryAllowed;
 @end
 // DelegateImpl comes at the end of the file so it can access a private property of the Tapstream interface
@@ -25,7 +26,7 @@ static TSTapstream *instance = nil;
 @property(nonatomic, STRONG_OR_RETAIN) id<TSCoreListener> listener;
 @property(nonatomic, STRONG_OR_RETAIN) TSCore *core;
 
-- (id)initWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret hardware:(NSString *)hardware;
+- (id)initWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret config:(TSConfig *)config;
 
 @end
 
@@ -34,18 +35,13 @@ static TSTapstream *instance = nil;
 
 @synthesize del, platform, listener, core;
 
-+ (void)createWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret
-{
-	[TSTapstream createWithAccountName:accountName developerSecret:developerSecret hardware:nil];
-}
-
-+ (void)createWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret hardware:(NSString *)hardware
++ (void)createWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret config:(TSConfig *)config
 {
 	@synchronized(self)
 	{
 		if(instance == nil)
 		{
-			instance = [[TSTapstream alloc] initWithAccountName:accountName developerSecret:developerSecret hardware:hardware];
+			instance = [[TSTapstream alloc] initWithAccountName:accountName developerSecret:developerSecret config:config];
 		}
 		else
 		{
@@ -64,11 +60,11 @@ static TSTapstream *instance = nil;
 }
 
 
-- (id)initWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret hardware:(NSString *)hardware
+- (id)initWithAccountName:(NSString *)accountName developerSecret:(NSString *)developerSecret config:(TSConfig *)config
 {
 	if((self = [super init]) != nil)
 	{
-		del = [[TSDelegateImpl alloc] init];
+		del = [[TSDelegateImpl alloc] initWithTapstream:self];
 		platform = [[TSPlatformImpl alloc] init];
 		listener = [[TSCoreListenerImpl alloc] init];
 		core = [[TSCore alloc] initWithDelegate:del
@@ -76,7 +72,8 @@ static TSTapstream *instance = nil;
 			listener:listener
 			accountName:accountName
 			developerSecret:developerSecret
-			hardware:hardware];
+			config:config];
+		[core start];
 	}
 	return self;
 }
@@ -127,6 +124,10 @@ static TSTapstream *instance = nil;
 - (int)getDelay
 {
 	return [ts.core getDelay];
+}
+
+- (void)setDelay:(int)delay
+{
 }
 
 - (bool)isRetryAllowed

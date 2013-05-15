@@ -1,6 +1,6 @@
 ﻿using System;
 
-#if WINDOWS_PHONE
+#if TEST_WINPHONE || WINDOWS_PHONE
 #else
 using Windows.Foundation;
 using System.Threading.Tasks;
@@ -12,19 +12,14 @@ namespace TapstreamMetrics.Sdk
     {
         private static Tapstream instance;
         private static object instanceLock = new Object();
-        
-        public static void Create(string accountName, string developerSecret)
-        {
-            Create(accountName, developerSecret, null);
-        }
-        
-        public static void Create(string accountName, string developerSecret, string hardware)
+
+        public static void Create(string accountName, string developerSecret, Config config)
         {
             lock (instanceLock)
             {
                 if (instance == null)
                 {
-                    instance = new Tapstream(accountName, developerSecret, hardware);
+                    instance = new Tapstream(accountName, developerSecret, config);
                 }
                 else
                 {
@@ -63,6 +58,10 @@ namespace TapstreamMetrics.Sdk
                 return ts.core.GetDelay();
             }
 
+            public void SetDelay(int delay)
+            {
+            }
+
             public bool IsRetryAllowed()
             {
                 return true;
@@ -75,12 +74,13 @@ namespace TapstreamMetrics.Sdk
         private CoreListener listener;
         private Core core;
 
-        private Tapstream(string accountName, string developerSecret, string hardware)
+        private Tapstream(string accountName, string developerSecret, Config config)
         {
             del = new DelegateImpl(this);
             platform = new PlatformImpl();
             listener = new CoreListenerImpl();
-            core = new Core(del, platform, listener, accountName, developerSecret, hardware);
+            core = new Core(del, platform, listener, accountName, developerSecret, config);
+            core.Start();
         }
 
         public void FireEvent(Event e)
@@ -88,7 +88,7 @@ namespace TapstreamMetrics.Sdk
             core.FireEvent(e);
         }
 
-#if WINDOWS_PHONE
+#if TEST_WINPHONE || WINDOWS_PHONE
         public void FireHit(Hit h, Hit.Complete completion)
         {
             core.FireHit(h, completion);

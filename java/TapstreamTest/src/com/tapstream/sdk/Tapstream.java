@@ -5,8 +5,14 @@ import com.tapstream.sdk.Hit.CompletionHandler;
 class Tapstream implements Api {
 
 	private class DelegateImpl implements Delegate {
+		private int delay = 0;
+
 		public int getDelay() {
-			return 0;
+			return delay;
+		}
+
+		public void setDelay(int delay) {
+			this.delay = delay;
 		}
 
 		public boolean isRetryAllowed() {
@@ -19,18 +25,16 @@ class Tapstream implements Api {
 	private CoreListener listener;
 	public Core core;
 
-	public Tapstream(OperationQueue queue, String accountName, String developerSecret) {
+	public Tapstream(OperationQueue queue, String accountName, String developerSecret, Config config) {
 		delegate = new DelegateImpl();
 		platform = new PlatformImpl();
 		listener = new CoreListenerImpl(queue);
-		core = new Core(delegate, platform, listener, accountName, developerSecret, null);
+		core = new Core(delegate, platform, listener, accountName, developerSecret, config);
+		core.start();
 	}
 
-	public Tapstream(OperationQueue queue, String accountName, String developerSecret, String hardware) {
-		delegate = new DelegateImpl();
-		platform = new PlatformImpl();
-		listener = new CoreListenerImpl(queue);
-		core = new Core(delegate, platform, listener, accountName, developerSecret, hardware);
+	public void setDelay(int delay) {
+		delegate.setDelay(delay);
 	}
 
 	public void fireEvent(Event e) {

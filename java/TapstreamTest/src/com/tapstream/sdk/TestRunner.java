@@ -50,6 +50,10 @@ public class TestRunner {
 			return ts.core.getDelay();
 		}
 
+		public void setDelay(Tapstream ts, int delay) {
+			ts.setDelay(delay);
+		}
+
 		public Scriptable getSavedFiredList(Tapstream ts) {
 			Set<String> set = ((PlatformImpl) ts.platform).savedFiredList;
 			if (set == null) {
@@ -66,8 +70,12 @@ public class TestRunner {
 			return new OperationQueue();
 		}
 
-		public Tapstream newTapstream(OperationQueue queue, String accountName, String secret, String hardware) {
-			return new Tapstream(queue, accountName, secret, hardware);
+		public Config newConfig() {
+			return new Config();
+		}
+
+		public Tapstream newTapstream(OperationQueue queue, String accountName, String secret, Config config) {
+			return new Tapstream(queue, accountName, secret, config);
 		}
 
 		public Event newEvent(String name, boolean oneTimeOnly) {
@@ -98,6 +106,7 @@ public class TestRunner {
 		try {
 			ScriptableObject scope = cx.initStandardObjects();
 			scope.putConst("language", scope, "java");
+			scope.putConst("platform", scope, "android");
 			scope.put("util", scope, new Util(cx, scope));
 			cx.evaluateString(scope, script, args[0], 1, null);
 		} catch (Error ex) {

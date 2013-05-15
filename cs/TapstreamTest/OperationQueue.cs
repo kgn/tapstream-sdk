@@ -27,10 +27,23 @@ namespace TapstreamMetrics.Sdk
 	    {
 	    }
 	
-	    public void Expect(string opName)
+	    public string Expect(string opName)
 	    {
             Operation op = Take();
             Assert.AreEqual(opName, op.name);
+            return op.arg;
 	    }
+
+        public string ExpectEventually(string opName)
+        {
+            while(true)
+            {
+                Operation op = Take();
+                if (opName == op.name)
+                {
+                    return op.arg;
+                }
+            }
+        }
     }
 }

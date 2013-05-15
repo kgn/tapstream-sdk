@@ -48,6 +48,11 @@ namespace TapstreamMetrics.Sdk
             return ts.GetPostData();
         }
 
+        public void setDelay(Tapstream ts, double delay)
+        {
+            ts.SetDelay((int)delay);
+        }
+
         public double getDelay(Tapstream ts)
         {
             return ts.GetDelay();
@@ -70,9 +75,14 @@ namespace TapstreamMetrics.Sdk
             return new OperationQueue();
         }
 
-        public Tapstream newTapstream(OperationQueue queue, string accountName, string secret, string hardware)
+        public Config newConfig()
         {
-            return new Tapstream(queue, accountName, secret, hardware);
+            return new Config();
+        }
+
+        public Tapstream newTapstream(OperationQueue queue, string accountName, string secret, Config config)
+        {
+            return new Tapstream(queue, accountName, secret, config);
         }
 
         public Event newEvent(string name, bool oneTimeOnly)
@@ -104,6 +114,11 @@ namespace TapstreamMetrics.Sdk
             string script = System.IO.File.ReadAllText(args[0]);
             JintEngine engine = new JintEngine();
             engine.SetParameter("language", "cs");
+#if TEST_WINPHONE
+            engine.SetParameter("platform", "winphone");
+#else
+            engine.SetParameter("platform", "windows");
+#endif
             engine.SetParameter("util", new Util(engine));
             engine.Run(script);
         }

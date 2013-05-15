@@ -11,7 +11,7 @@ import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 class Core {
-	public static final String VERSION = "2.1";
+	public static final String VERSION = "2.3";
 	private static final String EVENT_URL_TEMPLATE = "https://api.tapstream.com/%s/event/%s/";
 	private static final String HIT_URL_TEMPLATE = "http://api.tapstream.com/%s/hit/%s.gif";
 	private static final int MAX_THREADS = 1;
@@ -19,6 +19,7 @@ class Core {
 	private Delegate delegate;
 	private Platform platform;
 	private CoreListener listener;
+	private Config config;
 	private String accountName;
 	private ScheduledThreadPoolExecutor executor;
 	private StringBuilder postData = null;
@@ -27,18 +28,45 @@ class Core {
 	private String failingEventId = null;
 	private int delay = 0;
 
-	Core(Delegate delegate, Platform platform, CoreListener listener, String accountName, String developerSecret, String hardware) {
+	Core(Delegate delegate, Platform platform, CoreListener listener, String accountName, String developerSecret, Config config) {
 		this.delegate = delegate;
 		this.platform = platform;
 		this.listener = listener;
+		this.config = config;
 
 		this.accountName = clean(accountName);
-		makePostArgs(developerSecret, hardware);
+		makePostArgs(developerSecret);
 
 		firedEvents = platform.loadFiredEvents();
 
 		executor = new ScheduledThreadPoolExecutor(MAX_THREADS, platform.makeWorkerThreadFactory());
-		executor.prestartAllCoreThreads();
+		executor.prestartAllCoreThreads();		
+	}
+
+	public void start() {
+		// Automatically fire run event
+		String appName = platform.getAppName();
+		if(appName == null) {
+			appName = "";
+		}
+
+		if(config.getFireAutomaticInstallEvent()) {
+			String installEventName = config.getInstallEventName();
+			if(installEventName != null) {
+				fireEvent(new Event(installEventName, true));
+			} else {
+				fireEvent(new Event(String.format(Locale.US, "android-%s-install", appName), true));	
+			}
+		}
+
+		if(config.getFireAutomaticOpenEvent()) {
+			String openEventName = config.getOpenEventName();
+			if(openEventName != null) {
+				fireEvent(new Event(openEventName, false));
+			} else {
+				fireEvent(new Event(String.format(Locale.US, "android-%s-open", appName), false));	
+			}
+		}
 	}
 
 	public synchronized void fireEvent(final Event e) {
@@ -49,13 +77,13 @@ class Core {
 		if (e.isOneTimeOnly()) {
 			if (firedEvents.contains(e.getName())) {
 				Logging.log(Logging.INFO, "Tapstream ignoring event named \"%s\" because it is a one-time-only event that has already been fired", e.getName());
-				listener.reportOperation("event-ignored-already-fired");
-				listener.reportOperation("job-ended");
+				listener.reportOperation("event-ignored-already-fired", e.getName());
+				listener.reportOperation("job-ended", e.getName());
 				return;
 			} else if (firingEvents.contains(e.getName())) {
 				Logging.log(Logging.INFO, "Tapstream ignoring event named \"%s\" because it is a one-time-only event that is already in progress", e.getName());
-				listener.reportOperation("event-ignored-already-in-progress");
-				listener.reportOperation("job-ended");
+				listener.reportOperation("event-ignored-already-in-progress", e.getName());
+				listener.reportOperation("job-ended", e.getName());
 				return;
 			}
 
@@ -100,7 +128,7 @@ class Core {
 							self.firedEvents.add(e.getName());
 
 							self.platform.saveFiredEvents(self.firedEvents);
-							self.listener.reportOperation("fired-list-saved", e.getUid());
+							self.listener.reportOperation("fired-list-saved", e.getName());
 						}
 
 						// Success of any event resets the delay
@@ -123,10 +151,10 @@ class Core {
 						Logging.log(Logging.ERROR, "Tapstream Error: Failed to fire event, http code %d.%s", response.status, retryMsg);
 					}
 
-					self.listener.reportOperation("event-failed", e.getUid());
+					self.listener.reportOperation("event-failed", e.getName());
 					if (shouldRetry) {
-						self.listener.reportOperation("retry", e.getUid());
-						self.listener.reportOperation("job-ended");
+						self.listener.reportOperation("retry", e.getName());
+						self.listener.reportOperation("job-ended", e.getName());
 						if (self.delegate.isRetryAllowed()) {
 							self.fireEvent(e);
 						}
@@ -134,10 +162,10 @@ class Core {
 					}
 				} else {
 					Logging.log(Logging.INFO, "Tapstream fired event named \"%s\"", e.getName());
-					self.listener.reportOperation("event-succeeded");
+					self.listener.reportOperation("event-succeeded", e.getName());
 				}
 
-				self.listener.reportOperation("job-ended");
+				self.listener.reportOperation("job-ended", e.getName());
 			}
 			public void run() {
 				try {
@@ -206,6 +234,10 @@ class Core {
 	}
 
 	private void appendPostPair(String key, String value) {
+		if(value == null) {
+			return;
+		}
+
 		String encodedName = null;
 		try {
 			encodedName = URLEncoder.encode(key, "UTF-8").replace("+", "%20");
@@ -232,15 +264,45 @@ class Core {
 		postData.append(encodedValue);
 	}
 
-	private void makePostArgs(String secret, String hardware) {
+	private void makePostArgs(String secret) {
 		appendPostPair("secret", secret);
 		appendPostPair("sdkversion", VERSION);
+		
+		String hardware = config.getHardware();
 		if (hardware != null) {
 			if (hardware.length() > 255) {
 				Logging.log(Logging.WARN, "Tapstream Warning: Hardware argument exceeds 255 characters, it will not be included with fired events");
 			} else {
 				appendPostPair("hardware", hardware);
 			}
+		}
+
+		String odin1 = config.getOdin1();
+		if (odin1 != null) {
+			if (odin1.length() > 255) {
+				Logging.log(Logging.WARN, "Tapstream Warning: ODIN-1 argument exceeds 255 characters, it will not be included with fired events");
+			} else {
+				appendPostPair("hardware-odin1", odin1);
+			}
+		}
+
+		String openUdid = config.getOpenUdid();
+		if (openUdid != null) {
+			if (openUdid.length() > 255) {
+				Logging.log(Logging.WARN, "Tapstream Warning: OpenUDID argument exceeds 255 characters, it will not be included with fired events");
+			} else {
+				appendPostPair("hardware-open-udid", openUdid);
+			}
+		}
+
+		if (config.getCollectWifiMac()) {
+			appendPostPair("hardware-wifi-mac", platform.getWifiMac());
+		}
+		if (config.getCollectDeviceId()) {
+			appendPostPair("hardware-android-device-id", platform.getDeviceId());
+		}
+		if (config.getCollectAndroidId()) {
+			appendPostPair("hardware-android-android-id", platform.getAndroidId());
 		}
 
 		appendPostPair("uuid", platform.loadUuid());
@@ -250,6 +312,8 @@ class Core {
 		appendPostPair("os", platform.getOs());
 		appendPostPair("resolution", platform.getResolution());
 		appendPostPair("locale", platform.getLocale());
+		appendPostPair("app-name", platform.getAppName());
+		appendPostPair("package-name", platform.getPackageName());
 
 		int offsetFromUtc = TimeZone.getDefault().getOffset((new Date()).getTime()) / 1000;
 		appendPostPair("gmtoffset", Integer.toString(offsetFromUtc));
